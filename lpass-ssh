@@ -1,12 +1,9 @@
 #!/usr/bin/env bash
 
-set -e
-
-if [ -z ${SSH_HOURS} ]; then
+if [[ -z ${SSH_HOURS} ]]; then
   SSH_HOURS=$1
-  if [ -z ${SSH_HOURS} ]; then
-    SSH_HOURS=9
-  fi
+else
+  SSH_HOURS=9
 fi
 
 if ! ( which lpass > /dev/null ); then
@@ -17,22 +14,25 @@ fi
 
 lpass status > /dev/null
 LPASS_LOGIN_STATUS=$?
-if ! [ ${LPASS_LOGIN_STATUS} -eq 0 ]; then
+if [[ ! ${LPASS_LOGIN_STATUS} -eq 0 ]]; then
+  echo "logging in"
   if ! ( lpass login phil.goodwin@gmail.com ); then
     echo "login failed"
-    exit 1    
+    exit 1
   fi
+else
+  echo "already logged in"
 fi
 
 trap 'rm -f "${TMPFILE}"; echo "deleted temp file"' EXIT
 TMPFILE=$(mktemp -t DOWNLOADED_KEY_FILE)
 lpass show --notes github_key >> ${TMPFILE}
 
-if ! [ ${LPASS_LOGIN_STATUS} -eq 0 ]; then
+if [[ ! ${LPASS_LOGIN_STATUS} -eq 0 ]]; then
   lpass logout -f
 fi
 
-if [ ${SSH_HOURS} -eq -1 ]; then
+if [[ ${SSH_HOURS} -eq -1 ]]; then
   ssh-add -q ${TMPFILE} || exit 1
   echo "Key added -- will not expire"
 else
