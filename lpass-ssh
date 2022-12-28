@@ -6,31 +6,30 @@ else
   SSH_HOURS=9
 fi
 
-if ! ( which lpass > /dev/null ); then
-  echo "LastPass CLI is required."
-  echo "try: brew install lastpass-cli"
+if ! ( which bw > /dev/null ); then
+  echo "BitWarden CLI is required."
+  echo "try: brew install bitwarden-cli"
   exit 2
 fi
 
-lpass status > /dev/null
-LPASS_LOGIN_STATUS=$?
-if [[ ! ${LPASS_LOGIN_STATUS} -eq 0 ]]; then
-  echo "logging in"
-  if ! ( lpass login phil.goodwin@gmail.com ); then
-    echo "login failed"
-    exit 1
-  fi
-else
-  echo "already logged in"
-fi
-
-trap 'rm -f "${TMPFILE}"; echo "deleted temp file"' EXIT
+TMPFILE1=$(mktemp -t DOWNLOADED_KEY_FILE1)
 TMPFILE=$(mktemp -t DOWNLOADED_KEY_FILE)
-lpass show --notes github_key >> ${TMPFILE}
+trap 'rm -f "${TMPFILE}"; rm -f ${TMPFILE1}; echo "deleted temp files"' EXIT
 
-if [[ ! ${LPASS_LOGIN_STATUS} -eq 0 ]]; then
-  lpass logout -f
+bw logout
+echo "logging in"
+BW_SESSION=$(bw login phil.goodwin@gmail.com --raw)
+LOGIN_STATUS=$?
+if [[ ! ( ${LOGIN_STATUS} -eq 0) ]]; then
+  echo "login failed"
+  exit 1
 fi
+
+#BitWarden adds a space to the start of the file for some reason. Use tail to strip it off
+bw get notes github_key --session ${BW_SESSION} >> ${TMPFILE1}
+bw logout
+tail -c +2 ${TMPFILE1} >> ${TMPFILE}
+chmod 600 ${TMPFILE}
 
 if [[ ${SSH_HOURS} -eq -1 ]]; then
   ssh-add -q ${TMPFILE} || exit 1
@@ -38,13 +37,4 @@ if [[ ${SSH_HOURS} -eq -1 ]]; then
 else
   ssh-add -q -t ${SSH_HOURS}H ${TMPFILE} || exit 1
   echo "Key added -- expires in ${SSH_HOURS} hours"
-fi
-
-# Check whether the key was added to the agent
-if ( ssh-add -l | grep -q "${TMPFILE}" ); then
-  echo "Key successfully added."
-  exit 0
-else
-  echo "Found passphrase but could not add key."
-  exit 1
 fi
